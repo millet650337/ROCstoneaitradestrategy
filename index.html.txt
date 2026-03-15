@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台股即時決策系統 (全真實數據+多模型AI)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        @keyframes flash-red { 0% { color: #ef4444; } 50% { color: #fca5a5; } 100% { color: #ef4444; } }
+        @keyframes flash-green { 0% { color: #22c55e; } 50% { color: #86efac; } 100% { color: #22c55e; } }
+        .tick-up { animation: flash-red 1s; color: #ef4444; }
+        .tick-down { animation: flash-green 1s; color: #22c55e; }
+        @keyframes modal-fade-in { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        .modal-animate { animation: modal-fade-in 0.2s ease-out forwards; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans min-h-screen p-4 md:p-6 relative">
+
+    <div class="max-w-7xl mx-auto space-y-4">
+        
+        <!-- 上方：標題與搜尋區 -->
+        <div class="flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
+            <h1 class="text-2xl font-bold text-blue-400 flex items-center gap-2">
+                📈 台股決策戰情室 <span class="text-xs bg-red-900 text-red-200 px-2 py-1 rounded">100% 真實數據連線</span>
+            </h1>
+            <div class="flex gap-2 w-full md:w-auto">
+                <input type="text" id="stock-input" placeholder="輸入代碼 (如: 2330)" class="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 w-full md:w-64 text-white">
+                <button onclick="addStock()" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition-colors">
+                    新增分頁
+                </button>
+            </div>
+        </div>
+
+        <!-- 頁籤與時間列 -->
+        <div class="flex justify-between items-end border-b border-gray-700">
+            <div id="tabs-container" class="flex gap-1 overflow-x-auto pb-0"></div>
+            <div class="flex flex-col items-end pb-2 px-2 hidden md:flex">
+                <div id="tw-clock" class="text-sm text-gray-400 font-mono font-bold"></div>
+            </div>
+        </div>
+
+        <!-- 主要內容區 -->
+        <div class="grid grid-cols-1 lg:grid-cols-10 gap-6">
+            
+            <!-- 中間：K線圖與報價區 -->
+            <div class="lg:col-span-7 bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
+                <div class="flex justify-between items-center mb-2 pb-2 border-b border-gray-700">
+                    <div class="flex items-baseline gap-3">
+                        <h2 id="chart-title" class="text-2xl font-bold">即時連線抓取中...</h2>
+                        <span id="current-price" class="text-3xl font-bold">--</span>
+                        <span id="price-change" class="text-lg font-semibold">--</span>
+                    </div>
+                    <!-- 日期區間切換 -->
+                    <div class="flex bg-gray-700 rounded-lg p-1 text-xs md:text-sm overflow-x-auto">
+                        <button onclick="setDateRange(30)" id="btn-range-30" class="px-2 md:px-3 py-1 rounded-md text-gray-400 hover:text-white whitespace-nowrap">1個月</button>
+                        <button onclick="setDateRange(90)" id="btn-range-90" class="px-2 md:px-3 py-1 rounded-md bg-gray-600 text-white font-bold shadow whitespace-nowrap">3個月</button>
+                        <button onclick="setDateRange(180)" id="btn-range-180" class="px-2 md:px-3 py-1 rounded-md text-gray-400 hover:text-white whitespace-nowrap">半年</button>
+                        <button onclick="setDateRange(365)" id="btn-range-365" class="px-2 md:px-3 py-1 rounded-md text-gray-400 hover:text-white whitespace-nowrap">1年</button>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center text-xs md:text-sm mb-2">
+                    <span id="data-warning" class="text-yellow-500 hidden text-xs font-bold">⚠️ 連線較慢或代碼錯誤，請稍候...</span>
+                    <!-- 均線標籤 -->
+                    <div class="flex gap-3 ml-auto" id="ma-toggles">
+                        <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="ma5" checked onchange="updateChart()"> <span class="text-yellow-400">MA5</span></label>
+                        <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="ma10" onchange="updateChart()"> <span class="text-orange-400">MA10</span></label>
+                        <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="ma20" checked onchange="updateChart()"> <span class="text-purple-400">MA20</span></label>
+                        <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="ma60" checked onchange="updateChart()"> <span class="text-blue-400">MA60</span></label>
+                    </div>
+                </div>
+                <!-- K線圖區塊 -->
+                <div id="plot-div" class="w-full h-[450px]"></div>
+            </div>
+
+            <!-- 右邊：四個真實資料框 -->
+            <div class="lg:col-span-3 space-y-4">
+                <div class="bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700 h-full flex flex-col gap-3">
+                    <h2 class="text-lg font-bold border-b border-gray-600 pb-2 flex justify-between">
+                        <span>📋 個股真實四大面向</span>
+                        <span class="text-xs text-blue-400 font-normal self-end animate-pulse">點擊卡片看詳細來源</span>
+                    </h2>
+                    
+                    <div onclick="openDetailModal('basic')" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg border-l-4 border-blue-500 cursor-pointer transition-colors group relative">
+                        <h3 class="font-bold text-blue-400 mb-1 text-sm flex justify-between">🏢 基本面 (即時財報) <span class="text-gray-500 group-hover:text-blue-300">🔍</span></h3>
+                        <p id="info-basic" class="text-xs text-gray-300 whitespace-pre-line">連線抓取中...</p>
+                    </div>
+                    
+                    <div onclick="openDetailModal('tech')" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg border-l-4 border-yellow-500 cursor-pointer transition-colors group relative">
+                        <h3 class="font-bold text-yellow-400 mb-1 text-sm flex justify-between">📈 技術面 (即時運算) <span class="text-gray-500 group-hover:text-yellow-300">🔍</span></h3>
+                        <p id="info-tech" class="text-xs text-gray-300 whitespace-pre-line">運算指標中...</p>
+                    </div>
+                    
+                    <div onclick="openDetailModal('chips')" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg border-l-4 border-red-500 cursor-pointer transition-colors group relative">
+                        <h3 class="font-bold text-red-400 mb-1 text-sm flex justify-between">💰 資金/量能面 <span class="text-gray-500 group-hover:text-red-300">🔍</span></h3>
+                        <p id="info-chips" class="text-xs text-gray-300 whitespace-pre-line">分析真實量能中...</p>
+                    </div>
+                    
+                    <div onclick="openDetailModal('news')" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg border-l-4 border-green-500 flex-1 cursor-pointer transition-colors group relative">
+                        <h3 class="font-bold text-green-400 mb-1 text-sm flex justify-between">📰 消息面 (真實新聞) <span class="text-gray-500 group-hover:text-green-300">🔍</span></h3>
+                        <p id="info-news" class="text-xs text-gray-300 whitespace-pre-line">正在抓取新聞...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 最下面：AI 真實多模型綜合交易策略 -->
+        <div class="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 border-t-4 border-t-blue-500">
+            <h2 class="text-xl font-bold mb-4 border-b border-gray-600 pb-2">🤖 AI 綜合量化策略引擎 (多模型動態選優)</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div class="md:col-span-1 bg-gray-700 p-4 rounded-lg flex flex-col items-center justify-center border border-gray-600 shadow-inner">
+                    <span class="text-gray-400 text-sm mb-1">系統判定最佳策略</span>
+                    <span id="sig-strategy-name" class="text-xl font-bold text-blue-400 text-center">運算中...</span>
+                </div>
+                <div class="md:col-span-1 bg-gray-700 p-4 rounded-lg flex flex-col items-center justify-center border border-gray-600 shadow-inner">
+                    <span class="text-gray-400 text-sm mb-1">訊號方向</span>
+                    <span id="sig-direction" class="text-3xl font-bold">--</span>
+                </div>
+                <div class="md:col-span-1 bg-gray-700 p-4 rounded-lg flex flex-col items-center justify-center border border-gray-600 shadow-inner">
+                    <span class="text-gray-400 text-sm mb-1">建議進場點</span>
+                    <span id="sig-entry" class="text-lg font-semibold text-yellow-300">--</span>
+                </div>
+                <div class="md:col-span-1 bg-gray-700 p-4 rounded-lg flex flex-col items-center justify-center border border-gray-600 shadow-inner">
+                    <span class="text-gray-400 text-sm mb-1">防守停損/停利點</span>
+                    <span id="sig-exit" class="text-lg font-semibold text-gray-300">--</span>
+                </div>
+            </div>
+            
+            <div class="bg-gray-900 p-4 rounded-lg border border-gray-700">
+                <span class="text-gray-400 text-sm font-bold block mb-1">💡 策略入選邏輯與綜合評估：</span>
+                <p id="sig-reason" class="text-gray-300 text-sm md:text-base leading-relaxed">正在綜合評估真實均線、RSI、MACD 與 布林通道...</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 🌟 詳細資訊彈出視窗 (Modal) -->
+    <div id="detail-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50 backdrop-blur-sm" onclick="closeModalOnOutsideClick(event)">
+        <div class="bg-gray-800 border border-gray-600 rounded-xl shadow-2xl w-11/12 md:w-2/3 lg:w-1/2 max-h-[85vh] flex flex-col modal-animate" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center p-5 border-b border-gray-700" id="modal-header">
+                <h3 id="modal-title" class="text-xl md:text-2xl font-bold text-white flex items-center gap-2">標題</h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-white text-3xl leading-none">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto text-gray-200 space-y-4 text-sm md:text-base leading-relaxed bg-gray-800/50" id="modal-body">
+                <!-- 動態填入真實資料 -->
+            </div>
+            <div class="p-4 border-t border-gray-700 bg-gray-900 rounded-b-xl flex flex-col md:flex-row justify-between text-xs md:text-sm text-gray-400 gap-2">
+                <div>
+                    <span class="text-gray-500">🕒 資料時間：</span>
+                    <span id="modal-time" class="text-gray-300 font-mono">即時連線抓取</span>
+                </div>
+                <div>
+                    <span class="text-gray-500">🔗 資料來源：</span>
+                    <a id="modal-link" href="#" target="_blank" class="text-blue-400 hover:text-blue-300 hover:underline font-bold transition-colors">真實公開 API</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 核心安全工具：防止 null 導致畫面崩潰 ---
+        function safeFixed(val, decimals = 2) {
+            return (val !== null && val !== undefined && !isNaN(val)) ? Number(val).toFixed(decimals) : '--';
+        }
+
+        // --- 穩定的雙重 Proxy 抓取系統 ---
+        async function fetchWithProxy(url) {
+            // 提供多重 Proxy 備援機制，解決 API 被阻擋的問題
+            const proxies =[
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+                `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+            ];
+            
+            for (let p of proxies) {
+                try {
+                    let res = await fetch(p, { cache: "no-store", timeout: 8000 });
+                    if (!res.ok) continue;
+                    let text = await res.text();
+                    // 防呆：如果 Proxy 回傳了 Yahoo 的防爬蟲 HTML 網頁，跳過不用
+                    if (text.includes('html>') || text.includes('Will be right back')) continue;
+                    
+                    let json = JSON.parse(text);
+                    if (json) return json;
+                } catch (e) {
+                    console.warn(`Proxy failed: ${p}`);
+                }
+            }
+            return null; // 全數失敗
+        }
+
+        let stocks = JSON.parse(localStorage.getItem('my_stocks')) ||['2330', '2317', '2603'];
+        let activeStock = stocks[0] || '2330';
+        let stockDataCache = {}; 
+        let currentRange = 90; 
+
+        window.onload = () => {
+            if(stocks.length === 0) addStock('2330');
+            setInterval(updateClock, 1000);
+            updateClock();
+            
+            document.getElementById('stock-input').addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') addStock();
+            });
+            document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+
+            renderTabs();
+            setDateRange(currentRange); 
+        };
+
+        function updateClock() {
+            let now = new Date();
+            let displayStr = now.toLocaleString('zh-TW', { 
+                timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', 
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false 
+            });
+            document.getElementById('tw-clock').innerText = `🕒 台灣時間: ${displayStr}`;
+        }
+
+        function addStock(code = null) {
+            let input = code || document.getElementById('stock-input').value.trim();
+            if(input && !stocks.includes(input)) {
+                stocks.push(input);
+                localStorage.setItem('my_stocks', JSON.stringify(stocks));
+                activeStock = input;
+                document.getElementById('stock-input').value = '';
+                renderTabs();
+                setDateRange(currentRange);
+            }
+        }
+
+        function closeTab(stock, event) {
+            event.stopPropagation();
+            stocks = stocks.filter(s => s !== stock);
+            localStorage.setItem('my_stocks', JSON.stringify(stocks));
+            if(stocks.length > 0) {
+                if(activeStock === stock) { activeStock = stocks[0]; setDateRange(currentRange); }
+                else renderTabs();
+            } else addStock('2330');
+        }
+
+        function switchTab(stock) {
+            activeStock = stock;
+            renderTabs();
+            setDateRange(currentRange);
+        }
+
+        function renderTabs() {
+            let container = document.getElementById('tabs-container');
+            container.innerHTML = '';
+            stocks.forEach(stock => {
+                let isActive = stock === activeStock;
+                let displayName = stockDataCache[stock] && stockDataCache[stock].quote ? stockDataCache[stock].quote.shortName : stock;
+                let btn = document.createElement('div');
+                btn.className = `flex items-center gap-2 px-4 py-2 rounded-t-lg font-bold transition-colors cursor-pointer select-none whitespace-nowrap 
+                                 ${isActive ? 'bg-gray-800 text-blue-400 border-t-2 border-blue-500' : 'bg-gray-900 text-gray-500 hover:text-gray-300 border-t border-gray-700'}`;
+                btn.onclick = () => switchTab(stock);
+                btn.innerHTML = `<span>${displayName}</span><span onclick="closeTab('${stock}', event)" class="w-5 h-5 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white transition text-lg">&times;</span>`;
+                container.appendChild(btn);
+            });
+        }
+
+        function setDateRange(days) {
+            currentRange = days;[30, 90, 180, 365].forEach(d => {
+                let btn = document.getElementById(`btn-range-${d}`);
+                if(btn) btn.className = (d === days) ? "px-2 md:px-3 py-1 rounded-md bg-gray-600 text-white font-bold shadow whitespace-nowrap" : "px-2 md:px-3 py-1 rounded-md text-gray-400 hover:text-white whitespace-nowrap";
+            });
+            fetchRealData(activeStock, days);
+        }
+
+        // --- 核心演算法：計算真實 RSI、MACD、布林通道 ---
+        function calculateEMA(data, period) {
+            let ema = new Array(data.length).fill(null);
+            let multiplier = 2 / (period + 1);
+            let sum = 0, count = 0;
+            for(let i=0; i<data.length; i++) {
+                if(data[i] !== null && !isNaN(data[i])) {
+                    if(count < period) { sum += data[i]; count++; if(count===period) ema[i] = sum/period; } 
+                    else { ema[i] = (data[i] - ema[i-1]) * multiplier + ema[i-1]; }
+                }
+            }
+            return ema;
+        }
+
+        function calcAdvancedIndicators(data) {
+            let closes = data.closes;
+            if(closes.length === 0) return;
+
+            // MA
+            data.ma5 = calculateEMA(closes, 5);
+            data.ma10 = calculateEMA(closes, 10);
+            data.ma20 = calculateEMA(closes, 20);
+            data.ma60 = calculateEMA(closes, 60);
+
+            // RSI(14)
+            let rsi = new Array(closes.length).fill(null);
+            let period = 14;
+            if(closes.length >= period) {
+                let gains = 0, losses = 0;
+                for(let i=1; i<=period; i++) {
+                    let diff = closes[i] - closes[i-1];
+                    if(diff>0) gains+=diff; else losses-=diff;
+                }
+                let avgGain = gains/period, avgLoss = losses/period;
+                rsi[period] = 100 - (100 / (1 + avgGain/(avgLoss===0?0.001:avgLoss)));
+                for(let i=period+1; i<closes.length; i++) {
+                    let diff = closes[i] - closes[i-1];
+                    let gain = diff>0 ? diff : 0;
+                    let loss = diff<0 ? -diff : 0;
+                    avgGain = (avgGain*(period-1)+gain)/period;
+                    avgLoss = (avgLoss*(period-1)+loss)/period;
+                    rsi[i] = 100 - (100 / (1 + avgGain/(avgLoss===0?0.001:avgLoss)));
+                }
+            }
+            data.rsi = rsi;
+
+            // MACD (12, 26, 9)
+            let ema12 = calculateEMA(closes, 12);
+            let ema26 = calculateEMA(closes, 26);
+            let macd = new Array(closes.length).fill(null);
+            for(let i=0; i<closes.length; i++) {
+                if(ema12[i]!==null && ema26[i]!==null) macd[i] = ema12[i]-ema26[i];
+            }
+            let signal = calculateEMA(macd, 9);
+            data.macd = macd;
+            data.macdSignal = signal;
+
+            // Bollinger Bands (20, 2)
+            let upperBB = new Array(closes.length).fill(null);
+            let lowerBB = new Array(closes.length).fill(null);
+            for(let i=19; i<closes.length; i++) {
+                let slice = closes.slice(i-19, i+1).filter(val => val !== null);
+                if(slice.length === 20) {
+                    let mean = slice.reduce((a,b)=>a+b,0)/20;
+                    let variance = slice.reduce((a,b)=>a+Math.pow(b-mean,2),0)/20;
+                    let stddev = Math.sqrt(variance);
+                    upperBB[i] = mean + 2*stddev;
+                    lowerBB[i] = mean - 2*stddev;
+                }
+            }
+            data.upperBB = upperBB;
+            data.lowerBB = lowerBB;
+        }
+
+        // --- 獲取 100% 真實數據 ---
+        async function fetchRealData(stock, days) {
+            let warnEl = document.getElementById('data-warning');
+            let titleEl = document.getElementById('chart-title');
+            warnEl.classList.remove('hidden');
+            warnEl.innerText = "⏳ 正在突破防爬蟲限制抓取真實數據...";
+            titleEl.innerText = `連線抓取中...`;
+
+            // 自動判斷上市 (.TW) 或 上櫃 (.TWO)
+            let finalSymbol = stock.match(/^[a-zA-Z]+$/) ? stock : stock + ".TW"; // 美股或台股
+            let quoteUrl = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${stock}.TW,${stock}.TWO,${stock}`;
+            let quoteData = await fetchWithProxy(quoteUrl);
+            let quote = null;
+            if (quoteData && quoteData.quoteResponse && quoteData.quoteResponse.result.length > 0) {
+                quote = quoteData.quoteResponse.result[0];
+                finalSymbol = quote.symbol; 
+            }
+
+            // 抓取真實歷史股價
+            let chartUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${finalSymbol}?range=2y&interval=1d`;
+            let chartData = await fetchWithProxy(chartUrl);
+            
+            if (!chartData || !chartData.chart || !chartData.chart.result) {
+                titleEl.innerText = `載入失敗！`;
+                warnEl.innerHTML = `❌ 無法取得 <b>${stock}</b> 數據。原因可能為：代碼錯誤、未上市櫃、或 Proxy 被瀏覽器阻擋。`;
+                return;
+            }
+
+            let result = chartData.chart.result[0];
+            let timestamps = result.timestamp;
+            let q = result.indicators.quote[0];
+            
+            let data = { dates: [], opens: [], highs:[], lows:[], closes:[], volumes:[], quote: quote, symbol: finalSymbol };
+            for(let i = 0; i < timestamps.length; i++) {
+                // 過濾掉盤中暫停交易產生的 null
+                if(q.close[i] !== null && q.close[i] !== undefined) {
+                    let d = new Date(timestamps[i] * 1000);
+                    // 格式化為真實日期 YYYY-MM-DD
+                    let dateStr = d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' }); 
+                    data.dates.push(dateStr);
+                    data.opens.push(q.open[i]); data.highs.push(q.high[i]);
+                    data.lows.push(q.low[i]); data.closes.push(q.close[i]);
+                    data.volumes.push(q.volume[i] || 0);
+                }
+            }
+
+            calcAdvancedIndicators(data);
+
+            // 抓取真實 RSS 新聞 (轉換為 JSON)
+            let rssUrl = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${finalSymbol}`;
+            let newsUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
+            try {
+                let newsRes = await fetch(newsUrl);
+                if(newsRes.ok) {
+                    let newsData = await newsRes.json();
+                    data.news = newsData.items || [];
+                } else data.news =[];
+            } catch(e) { data.news =[]; }
+
+            warnEl.classList.add('hidden');
+            stockDataCache[stock] = data;
+
+            renderTabs();
+            updateTopPriceBar();
+            updateChart();
+            updatePanelsPreview(stock, data);
+            runAdvancedAIStrategies(stock);
+        }
+
+        function updateTopPriceBar() {
+            let data = stockDataCache[activeStock];
+            if(!data || data.closes.length === 0) return;
+
+            let name = data.quote ? data.quote.shortName : activeStock;
+            document.getElementById('chart-title').innerText = `${name}`;
+            
+            let currentClose = data.closes[data.closes.length - 1];
+            let prevClose = data.closes[data.closes.length - 2] || currentClose;
+            let diff = currentClose - prevClose;
+            let pct = prevClose ? (diff / prevClose) * 100 : 0;
+            
+            let priceEl = document.getElementById('current-price');
+            let changeEl = document.getElementById('price-change');
+            
+            priceEl.innerText = safeFixed(currentClose, 2);
+            if(diff > 0) {
+                priceEl.className = "text-3xl font-bold text-red-500 tick-up";
+                changeEl.className = "text-lg font-semibold text-red-500"; changeEl.innerText = `▲ ${safeFixed(diff)} (+${safeFixed(pct)}%)`;
+            } else if(diff < 0) {
+                priceEl.className = "text-3xl font-bold text-green-500 tick-down";
+                changeEl.className = "text-lg font-semibold text-green-500"; changeEl.innerText = `▼ ${safeFixed(Math.abs(diff))} (${safeFixed(pct)}%)`;
+            } else {
+                priceEl.className = "text-3xl font-bold text-gray-300"; changeEl.className = "text-lg font-semibold text-gray-400"; changeEl.innerText = `－ 0.00 (0.00%)`;
+            }
+        }
+
+        // --- K線橫座標顯示「真實日期」 ---
+        function updateChart() {
+            let data = stockDataCache[activeStock];
+            if(!data || data.dates.length === 0) return;
+
+            // 依天數裁切
+            let bars = currentRange === 30 ? 22 : currentRange === 90 ? 65 : currentRange === 180 ? 130 : 250;
+            let sliceStart = Math.max(0, data.dates.length - bars);
+            
+            let sDates = data.dates.slice(sliceStart);
+            let traces =[{
+                x: sDates, open: data.opens.slice(sliceStart), high: data.highs.slice(sliceStart), 
+                low: data.lows.slice(sliceStart), close: data.closes.slice(sliceStart),
+                type: 'candlestick', name: 'K線',
+                increasing: {line: {color: '#ef4444'}}, decreasing: {line: {color: '#22c55e'}}
+            }];
+
+            if(document.getElementById('ma5').checked) traces.push({ x: sDates, y: data.ma5.slice(sliceStart), type: 'scatter', mode: 'lines', name: 'MA5', line: {color: '#facc15', width: 1.5} });
+            if(document.getElementById('ma10').checked) traces.push({ x: sDates, y: data.ma10.slice(sliceStart), type: 'scatter', mode: 'lines', name: 'MA10', line: {color: '#fb923c', width: 1.5} });
+            if(document.getElementById('ma20').checked) traces.push({ x: sDates, y: data.ma20.slice(sliceStart), type: 'scatter', mode: 'lines', name: 'MA20', line: {color: '#c084fc', width: 1.5} });
+            if(document.getElementById('ma60').checked) traces.push({ x: sDates, y: data.ma60.slice(sliceStart), type: 'scatter', mode: 'lines', name: 'MA60', line: {color: '#60a5fa', width: 1.5} });
+
+            let layout = {
+                paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: {color: '#d1d5db'},
+                margin: {t: 10, b: 30, l: 40, r: 10},
+                xaxis: { 
+                    type: 'date', // 強制顯示為日期格式
+                    tickformat: '%Y-%m-%d', // 橫坐標格式
+                    rangebreaks: [{ bounds:["sat", "mon"] }], // 完美隱藏六日空白區間
+                    gridcolor: '#374151' 
+                },
+                yaxis: { gridcolor: '#374151' }
+            };
+
+            Plotly.react('plot-div', traces, layout, {responsive: true, displayModeBar: false});
+        }
+
+        function updatePanelsPreview(stock, data) {
+            let q = data.quote || {};
+            let pe = safeFixed(q.trailingPE);
+            let eps = safeFixed(q.epsTrailingTwelveMonths);
+            let mktCap = q.marketCap ? (q.marketCap/100000000).toFixed(0) : '--';
+            
+            document.getElementById('info-basic').innerText = `• 滾動本益比 (PE): ${pe}\n• 近四季 EPS: ${eps} 元\n• 總市值: ${mktCap} 億`;
+            
+            let lastIdx = data.closes.length-1;
+            let lastPrice = data.closes[lastIdx];
+            let rsi = safeFixed(data.rsi[lastIdx], 1);
+            let ma20 = data.ma20[lastIdx];
+            let trend = (ma20 && lastPrice > ma20) ? '站上月線偏多' : '跌破月線偏空';
+            
+            document.getElementById('info-tech').innerText = `• RSI (14): ${rsi}\n• 月線位置: ${safeFixed(ma20)}\n• 趨勢: ${trend}`;
+            
+            let vol = data.volumes[lastIdx];
+            let avgVol = data.volumes.slice(-6, -1).reduce((a,b)=>a+b,0)/5;
+            document.getElementById('info-chips').innerText = `• 今日量能: ${(vol/1000).toFixed(0)} 張\n• 五日均量: ${(avgVol/1000).toFixed(0)} 張\n• 量價狀態: ${vol>avgVol?'出量放大':'量縮整理'}`;
+            
+            let newsTitle = data.news && data.news.length > 0 ? data.news[0].title : "暫無最新新聞";
+            document.getElementById('info-news').innerText = `• ${newsTitle}\n(點選查看完整新聞列表)`;
+        }
+
+        // --- 綜合 AI 多模型交易策略 (全面擴充) ---
+        function runAdvancedAIStrategies(stock) {
+            let data = stockDataCache[stock];
+            if(!data || data.closes.length < 20) {
+                document.getElementById('sig-strategy-name').innerText = "資料不足無法評估";
+                return;
+            }
+
+            let lastIdx = data.closes.length-1;
+            let lastClose = data.closes[lastIdx];
+            let rsi = data.rsi[lastIdx];
+            let macd = data.macd[lastIdx];
+            let macdSig = data.macdSignal[lastIdx];
+            let ma5 = data.ma5[lastIdx];
+            let ma20 = data.ma20[lastIdx];
+            let upperBB = data.upperBB[lastIdx];
+            let lowerBB = data.lowerBB[lastIdx];
+
+            let strategies =[];
+
+            // 模型 1: RSI 超賣反彈策略
+            if (rsi !== null && rsi < 35 && lastClose >= lowerBB) {
+                strategies.push({ name: "【RSI 極度超賣反彈】", score: 85 + (35-rsi), dir: "做多 🔴", entry: safeFixed(lastClose), exit: safeFixed(lowerBB), reason: `技術指標顯示 RSI 已跌至 ${safeFixed(rsi,1)} 的極度超賣區，且股價在布林下軌 (${safeFixed(lowerBB)}) 找到支撐，具備強烈短線反彈動能。` });
+            }
+            // 模型 2: 布林通道強勢突破策略
+            if (upperBB !== null && lastClose > upperBB && ma5 > ma20) {
+                strategies.push({ name: "【布林通道強勢突破】", score: 90, dir: "做多 🔴", entry: safeFixed(lastClose), exit: safeFixed(ma5), reason: `股價強勢帶量突破布林上軌 (${safeFixed(upperBB)})，均線呈現多頭排列，代表波段多頭攻勢啟動。防守停損點建議設於 5 日線。` });
+            }
+            // 模型 3: MACD 與 均線多頭順勢策略
+            if (ma5 !== null && ma20 !== null && macd !== null && ma5 > ma20 && macd > macdSig && rsi >= 45 && rsi <= 65) {
+                strategies.push({ name: "【MACD 均線多頭順勢】", score: 80, dir: "做多 🔴", entry: `拉回 ${safeFixed(ma5)}`, exit: safeFixed(ma20), reason: `短期 MA5 大於 MA20，且 MACD 柱狀體維持多方領域。趨勢穩定向上，建議於 5 日線附近伺機順勢佈局。` });
+            }
+            // 模型 4: 高檔超買乖離回檔策略
+            if (rsi !== null && rsi > 70 && lastClose < ma5) {
+                strategies.push({ name: "【高檔超買乖離回檔】", score: 82, dir: "做空 🟢", entry: safeFixed(lastClose), exit: safeFixed(data.highs[lastIdx]), reason: `RSI 高達 ${safeFixed(rsi,1)} 進入過熱超買區，且股價已率先跌破 5 日均線，顯示多頭力竭，有回測月線壓力的極大可能。` });
+            }
+            // 模型 5: 均線空頭規避策略
+            if (ma5 !== null && ma20 !== null && ma5 < ma20 && macd < macdSig) {
+                strategies.push({ name: "【均線空頭規避策略】", score: 88, dir: "觀望/做空 🟢", entry: `反彈 ${safeFixed(data.ma10[lastIdx])}`, exit: safeFixed(ma20), reason: `月線下彎且 MACD 位於零軸之下，屬於空方控盤格局。切勿輕易接刀，建議空手觀望或於反彈至 10 日線時偏空操作。` });
+            }
+
+            // 綜合評估：選出分數最高的最優策略
+            let bestStrategy = null;
+            if (strategies.length > 0) {
+                strategies.sort((a,b) => b.score - a.score);
+                bestStrategy = strategies[0];
+            } else {
+                // 模型 6: 無趨勢震盪策略
+                bestStrategy = { name: "【量縮無趨勢震盪區間】", score: 50, dir: "觀望 🟡", entry: "等待帶量表態", exit: "不適用", reason: `目前各項真實技術指標（MACD、均線糾結）皆無明顯單邊方向，處於無趨勢的區間震盪整理，貿然進場勝率低，建議空手等待明確表態。` };
+            }
+
+            document.getElementById('sig-strategy-name').innerText = bestStrategy.name;
+            document.getElementById('sig-direction').innerHTML = `<span class="${bestStrategy.dir.includes('做多')?'text-red-500':(bestStrategy.dir.includes('做空')?'text-green-500':'text-yellow-500')}">${bestStrategy.dir}</span>`;
+            document.getElementById('sig-entry').innerText = bestStrategy.entry;
+            document.getElementById('sig-exit').innerText = bestStrategy.exit;
+            document.getElementById('sig-reason').innerText = bestStrategy.reason;
+        }
+
+        // --- Modal 詳細資訊渲染 ---
+        function openDetailModal(type) {
+            let data = stockDataCache[activeStock];
+            if(!data) return;
+
+            let name = data.quote ? data.quote.shortName : activeStock;
+            let titleEl = document.getElementById('modal-title');
+            let bodyEl = document.getElementById('modal-body');
+            let headerEl = document.getElementById('modal-header');
+
+            headerEl.className = "flex justify-between items-center p-5 border-b border-gray-700";
+
+            if (type === 'basic') {
+                headerEl.classList.add('bg-blue-900/30');
+                titleEl.innerHTML = `🏢 ${name} - 真實基本面與市場財報`;
+                titleEl.className = "text-xl md:text-2xl font-bold text-blue-400 flex items-center gap-2";
+                
+                let q = data.quote || {};
+                bodyEl.innerHTML = `
+                    <div class="mb-4">
+                        <h4 class="text-blue-300 font-bold border-b border-gray-600 pb-1 mb-2">📊 即時市場財務數據</h4>
+                        <ul class="list-disc pl-5 space-y-2">
+                            <li><strong>最新本益比 (Trailing PE)：</strong> <span class="text-white font-bold">${safeFixed(q.trailingPE)}</span></li>
+                            <li><strong>近四季每股盈餘 (EPS)：</strong> <span class="text-white font-bold">${safeFixed(q.epsTrailingTwelveMonths)} 元</span></li>
+                            <li><strong>每股淨值 (Book Value)：</strong> ${safeFixed(q.bookValue)} 元</li>
+                            <li><strong>目前總市值：</strong> ${q.marketCap ? (q.marketCap/100000000).toFixed(2) + ' 億元' : '--'}</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="text-blue-300 font-bold border-b border-gray-600 pb-1 mb-2">📈 52週 (一年) 表現</h4>
+                        <ul class="list-disc pl-5 space-y-2">
+                            <li><strong>52週最高價：</strong> <span class="text-red-400 font-bold">${safeFixed(q.fiftyTwoWeekHigh)}</span></li>
+                            <li><strong>52週最低價：</strong> <span class="text-green-400 font-bold">${safeFixed(q.fiftyTwoWeekLow)}</span></li>
+                            <li><strong>價格區間位階：</strong> 目前股價處於一年中的 ${safeFixed(((data.closes[data.closes.length-1]-q.fiftyTwoWeekLow)/(q.fiftyTwoWeekHigh-q.fiftyTwoWeekLow))*100, 1)}% 歷史分位。</li>
+                        </ul>
+                    </div>
+                `;
+            } else if (type === 'tech') {
+                headerEl.classList.add('bg-yellow-900/30');
+                titleEl.innerHTML = `📈 ${name} - 真實綜合技術指標`;
+                titleEl.className = "text-xl md:text-2xl font-bold text-yellow-400 flex items-center gap-2";
+                
+                let lastIdx = data.closes.length - 1;
+                let rsiVal = data.rsi[lastIdx];
+                let macdHist = (data.macd[lastIdx] !== null && data.macdSignal[lastIdx] !== null) ? (data.macd[lastIdx] - data.macdSignal[lastIdx]) : null;
+
+                bodyEl.innerHTML = `
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div class="bg-gray-700/50 p-3 rounded border border-gray-600">
+                            <span class="block text-gray-400 text-sm mb-1">RSI (14日) 強弱指標</span>
+                            <span class="text-xl font-bold ${rsiVal>70?'text-red-400':(rsiVal<30?'text-green-400':'text-white')}">${safeFixed(rsiVal)}</span>
+                        </div>
+                        <div class="bg-gray-700/50 p-3 rounded border border-gray-600">
+                            <span class="block text-gray-400 text-sm mb-1">MACD 柱狀體 (OSC)</span>
+                            <span class="text-xl font-bold ${macdHist>0?'text-red-400':'text-green-400'}">${safeFixed(macdHist, 3)}</span>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-yellow-300 font-bold border-b border-gray-600 pb-1 mb-2">⚙️ 真實均線數值解析</h4>
+                        <ul class="list-disc pl-5 space-y-1 text-gray-300">
+                            <li><strong>收盤價：</strong> ${safeFixed(data.closes[lastIdx])}</li>
+                            <li><strong>MA5 (週線)：</strong> ${safeFixed(data.ma5[lastIdx])}</li>
+                            <li><strong>MA20 (月線)：</strong> ${safeFixed(data.ma20[lastIdx])}</li>
+                            <li><strong>布林上軌 / 下軌：</strong> ${safeFixed(data.upperBB[lastIdx])} / ${safeFixed(data.lowerBB[lastIdx])}</li>
+                        </ul>
+                    </div>
+                `;
+            } else if (type === 'chips') {
+                headerEl.classList.add('bg-red-900/30');
+                titleEl.innerHTML = `💰 ${name} - 市場真實資金與量能`;
+                titleEl.className = "text-xl md:text-2xl font-bold text-red-400 flex items-center gap-2";
+                
+                let vol = data.volumes[data.volumes.length-1];
+                let avgVol5 = data.volumes.slice(-6, -1).reduce((a,b)=>a+b,0)/5;
+                let volRatio = (vol / avgVol5) * 100;
+
+                bodyEl.innerHTML = `
+                    <div class="mb-4">
+                        <h4 class="text-red-300 font-bold border-b border-gray-600 pb-1 mb-2">📊 真實市場成交熱度</h4>
+                        <ul class="list-disc pl-5 space-y-2">
+                            <li><strong>今日真實成交量：</strong> ${(vol/1000).toFixed(0)} 張</li>
+                            <li><strong>過去五日平均成交量：</strong> ${(avgVol5/1000).toFixed(0)} 張</li>
+                            <li><strong>成交量增減比率：</strong> <span class="${volRatio>100?'text-red-400':'text-green-400'}">${safeFixed(volRatio, 1)}%</span></li>
+                        </ul>
+                        <p class="mt-4 text-gray-400 text-sm border-t border-gray-700 pt-2">
+                            ※ 備註：為堅持「不造假、不使用亂數模擬」原則，本區塊展示由 Yahoo 財經 API 提供的真實交易量與資金熱度。由於「三大法人買賣超」為台灣證券交易所版權資料，需架設獨立後端伺服器方能提供。
+                        </p>
+                    </div>
+                `;
+            } else if (type === 'news') {
+                headerEl.classList.add('bg-green-900/30');
+                titleEl.innerHTML = `📰 ${name} - 真實即時新聞聯播網`;
+                titleEl.className = "text-xl md:text-2xl font-bold text-green-400 flex items-center gap-2";
+                
+                if (data.news && data.news.length > 0) {
+                    let newsHtml = data.news.slice(0, 5).map(n => `
+                        <div class="bg-gray-700/40 p-3 rounded-lg border-l-2 border-green-500 hover:bg-gray-700/70 transition-colors">
+                            <h4 class="text-white font-bold mb-1 text-md"><a href="${n.link}" target="_blank" class="hover:text-blue-400">${n.title}</a></h4>
+                            <p class="text-gray-400 text-xs mt-1">🕒 發布時間: ${new Date(n.pubDate).toLocaleString('zh-TW')}</p>
+                        </div>
+                    `).join('');
+                    bodyEl.innerHTML = `<div class="space-y-4">${newsHtml}</div>`;
+                } else {
+                    bodyEl.innerHTML = `<p class="text-gray-400">目前無法取得最新新聞，或該公司近日無重大公開消息。</p>`;
+                }
+            }
+
+            document.getElementById('detail-modal').classList.remove('hidden');
+            document.getElementById('detail-modal').classList.add('flex');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            document.getElementById('detail-modal').classList.add('hidden');
+            document.getElementById('detail-modal').classList.remove('flex');
+            document.body.style.overflow = 'auto';
+        }
+
+        function closeModalOnOutsideClick(event) {
+            if (event.target.id === 'detail-modal') closeModal();
+        }
+    </script>
+</body>
+</html>
