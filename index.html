@@ -22,29 +22,22 @@
 
     <div class="max-w-7xl mx-auto space-y-4">
         
-        <div class="flex flex-col xl:flex-row justify-between items-center gap-4 bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
+        <div class="flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
             <h1 class="text-2xl font-bold text-blue-400 flex items-center gap-2 whitespace-nowrap">
-                📈 台股決策戰情室 <span class="text-xs bg-indigo-900 text-indigo-200 px-2 py-1 rounded">TEJ 法人級數據 API</span>
+                📈 台股決策戰情室 <span class="text-xs bg-indigo-900 text-indigo-200 px-2 py-1 rounded">TEJ 法人級數據直連</span>
             </h1>
             
-            <div class="flex flex-col md:flex-row gap-4 w-full xl:w-auto items-center">
-                <div class="flex items-center gap-2 bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-700 w-full md:w-auto">
-                    <span class="text-xs text-gray-400 whitespace-nowrap">TEJ 金鑰:</span>
-                    <input type="password" id="tej-api-key" placeholder="輸入您的 TEJ API Key" class="bg-transparent border-none text-xs text-yellow-400 focus:outline-none w-full md:w-48" onchange="saveApiKey()">
-                </div>
-
-                <div class="flex gap-2 w-full md:w-auto">
-                    <input type="text" id="stock-input" list="stock-list" placeholder="輸入代碼 (如: 2330)" class="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 w-full md:w-48 text-white uppercase">
-                    <datalist id="stock-list">
-                        <option value="2330" label="台積電"></option>
-                        <option value="2317" label="鴻海"></option>
-                        <option value="2454" label="聯發科"></option>
-                        <option value="2603" label="長榮"></option>
-                    </datalist>
-                    <button onclick="addStock()" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition-colors whitespace-nowrap">
-                        新增追蹤
-                    </button>
-                </div>
+            <div class="flex gap-2 w-full md:w-auto">
+                <input type="text" id="stock-input" list="stock-list" placeholder="輸入代碼 (如: 2330)" class="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 w-full md:w-48 text-white uppercase">
+                <datalist id="stock-list">
+                    <option value="2330" label="台積電"></option>
+                    <option value="2317" label="鴻海"></option>
+                    <option value="2454" label="聯發科"></option>
+                    <option value="2603" label="長榮"></option>
+                </datalist>
+                <button onclick="addStock()" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition-colors whitespace-nowrap">
+                    新增追蹤
+                </button>
             </div>
         </div>
 
@@ -180,24 +173,14 @@
     </div>
 
     <script>
+        // 將你提供的 TEJ API Key 直接寫死在此處 (僅供本地測試使用！)
+        const TEJ_API_KEY = "B2Xt7AmENBWbnF0uDxAw0g5rxPHZlr";
+
         function safeFixed(val, decimals = 2) {
             return (val !== null && val !== undefined && !isNaN(val)) ? Number(val).toFixed(decimals) : '--';
         }
 
-        // 載入與儲存 API Key
-        function loadApiKey() {
-            let key = localStorage.getItem('tej_api_key') || '';
-            document.getElementById('tej-api-key').value = key;
-            return key;
-        }
-        function saveApiKey() {
-            let key = document.getElementById('tej-api-key').value.trim();
-            localStorage.setItem('tej_api_key', key);
-            if(stocks.length > 0) fetchRealData(activeStock, currentRange); // 重新抓取
-        }
-
         async function fetchWithProxy(url) {
-            // 使用多重 Proxy 突破 CORS
             const proxies = [
                 `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
                 `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
@@ -221,7 +204,6 @@
         let previousStock = activeStock;
 
         window.onload = () => {
-            loadApiKey();
             if(stocks.length === 0) addStock('2330');
             setInterval(updateClock, 1000);
             updateClock();
@@ -283,7 +265,6 @@
             container.innerHTML = '';
             stocks.forEach(stock => {
                 let isActive = stock === activeStock;
-                // TEJ 回傳資料通常不帶中文字名稱，暫時顯示代號
                 let displayName = stock; 
                 let btn = document.createElement('div');
                 btn.className = `flex items-center gap-2 px-4 py-2 rounded-t-lg font-bold transition-colors cursor-pointer select-none whitespace-nowrap 
@@ -303,7 +284,6 @@
             fetchRealData(activeStock, days);
         }
 
-        // === 核心指標計算 ===
         function calculateEMA(data, period) {
             let ema = new Array(data.length).fill(null);
             let multiplier = 2 / (period + 1);
@@ -367,24 +347,14 @@
             data.upperBB = upperBB; data.lowerBB = lowerBB;
         }
 
-        // === 獲取 TEJ 資料 ===
         async function fetchRealData(stock, days) {
             let warnEl = document.getElementById('data-warning');
             let titleEl = document.getElementById('chart-title');
             
-            let apiKey = loadApiKey();
-            if(!apiKey) {
-                warnEl.classList.remove('hidden');
-                warnEl.innerHTML = "⚠️ <b>尚未輸入 TEJ API Key！</b> 請在上方輸入您的金鑰。";
-                titleEl.innerText = `等待輸入金鑰...`;
-                return;
-            }
-
             warnEl.classList.remove('hidden');
             warnEl.innerText = "⏳ 正在透過 Proxy 向 TEJ 伺服器請求資料...";
             titleEl.innerText = `TEJ 連線中...`;
 
-            // 設定查詢區間 (為確保均線算出，多往前抓 90 天)
             let fetchDays = days + 90; 
             let endDate = new Date();
             let startDate = new Date();
@@ -393,8 +363,8 @@
             let startStr = startDate.toISOString().split('T')[0];
             let endStr = endDate.toISOString().split('T')[0];
 
-            // 使用 TEJ TWN/APRCD (上市櫃調整後股價) 資料表
-            let tejUrl = `https://api.tej.com.tw/api/datatables/TWN/APRCD.json?coid=${stock}&mdate.gte=${startStr}&mdate.lte=${endStr}&api_key=${apiKey}`;
+            // 使用常數 TEJ_API_KEY
+            let tejUrl = `https://api.tej.com.tw/api/datatables/TWN/APRCD.json?coid=${stock}&mdate.gte=${startStr}&mdate.lte=${endStr}&api_key=${TEJ_API_KEY}`;
 
             try {
                 let resData = await fetchWithProxy(tejUrl);
@@ -404,7 +374,6 @@
                 }
 
                 let columns = resData.datatable.columns.map(c => c.name);
-                // 智慧尋找欄位索引
                 let idxDate = columns.indexOf('mdate');
                 let idxOpen = columns.indexOf('open_d');
                 let idxHigh = columns.indexOf('high_d');
@@ -416,16 +385,15 @@
                 let data = { dates: [], opens: [], highs:[], lows:[], closes:[], volumes:[], name: stock, symbol: stock };
                 
                 rawData.forEach(item => {
-                    let dStr = item[idxDate].split('T')[0]; // 處理 "2023-01-01T00:00:00Z" 格式
+                    let dStr = item[idxDate].split('T')[0]; 
                     data.dates.push(dStr);
                     data.opens.push(parseFloat(item[idxOpen]));
                     data.highs.push(parseFloat(item[idxHigh]));
                     data.lows.push(parseFloat(item[idxLow]));
                     data.closes.push(parseFloat(item[idxClose]));
-                    data.volumes.push(parseFloat(item[idxVol]) * 1000); // TEJ 成交量通常為千股
+                    data.volumes.push(parseFloat(item[idxVol]) * 1000); 
                 });
 
-                // 按日期排序確保順序正確 (TEJ 通常預設升冪，但保險起見)
                 let combined = [];
                 for(let i=0; i<data.dates.length; i++) {
                     combined.push({d: data.dates[i], o: data.opens[i], h: data.highs[i], l: data.lows[i], c: data.closes[i], v: data.volumes[i]});
@@ -439,7 +407,6 @@
 
                 calcAdvancedIndicators(data);
 
-                // 外部新聞聯播網 (Yahoo RSS - TEJ 價格 API 無新聞)
                 let rssUrl = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${stock}.TW`;
                 let newsUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
                 try {
@@ -461,7 +428,7 @@
                 updateWebInsights(stock);
 
             } catch (error) {
-                alert(`❌ 無法取得 ${stock} TEJ 數據。\n原因：${error.message}\n請確認您的 API Key 是否有效，或該代碼是否正確。`);
+                alert(`❌ 無法取得 ${stock} TEJ 數據。\n原因：${error.message}\n請確認代碼是否正確。`);
                 warnEl.classList.add('hidden');
                 stocks = stocks.filter(s => s !== stock);
                 localStorage.setItem('tej_my_stocks', JSON.stringify(stocks));
