@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台股即時決策系統 (TWSE官方數據+多模型AI)</title>
+    <title>台股決策戰情室 (FinMind 直連版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <style>
@@ -24,16 +24,15 @@
         
         <div class="flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
             <h1 class="text-2xl font-bold text-blue-400 flex items-center gap-2 whitespace-nowrap">
-                📈 台股決策戰情室 <span class="text-xs bg-purple-900 text-purple-200 px-2 py-1 rounded">TWSE 證交所官方連線</span>
+                📈 台股決策戰情室 <span class="text-xs bg-teal-900 text-teal-200 px-2 py-1 rounded">FinMind 原生直連 API</span>
             </h1>
             <div class="flex gap-2 w-full md:w-auto">
-                <input type="text" id="stock-input" list="stock-list" placeholder="輸入上市代碼 (如: 2330)" class="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 w-full md:w-64 text-white uppercase">
+                <input type="text" id="stock-input" list="stock-list" placeholder="輸入台股代碼 (如: 2330)" class="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 w-full md:w-64 text-white uppercase">
                 <datalist id="stock-list">
                     <option value="2330" label="台積電"></option>
                     <option value="2317" label="鴻海"></option>
                     <option value="2454" label="聯發科"></option>
                     <option value="2603" label="長榮"></option>
-                    <option value="2881" label="富邦金"></option>
                 </datalist>
                 <button onclick="addStock()" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition-colors whitespace-nowrap">
                     新增追蹤
@@ -53,7 +52,7 @@
             <div class="lg:col-span-7 bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
                 <div class="flex justify-between items-center mb-2 pb-2 border-b border-gray-700 flex-wrap gap-2">
                     <div class="flex items-baseline gap-3">
-                        <h2 id="chart-title" class="text-2xl font-bold">即時連線抓取中...</h2>
+                        <h2 id="chart-title" class="text-2xl font-bold">載入中...</h2>
                         <span id="current-price" class="text-3xl font-bold">--</span>
                         <span id="price-change" class="text-lg font-semibold">--</span>
                     </div>
@@ -61,11 +60,12 @@
                         <button onclick="setDateRange(30)" id="btn-range-30" class="px-2 md:px-3 py-1 rounded-md text-gray-400 hover:text-white whitespace-nowrap">1個月</button>
                         <button onclick="setDateRange(90)" id="btn-range-90" class="px-2 md:px-3 py-1 rounded-md bg-gray-600 text-white font-bold shadow whitespace-nowrap">3個月</button>
                         <button onclick="setDateRange(180)" id="btn-range-180" class="px-2 md:px-3 py-1 rounded-md text-gray-400 hover:text-white whitespace-nowrap">半年</button>
+                        <button onclick="setDateRange(365)" id="btn-range-365" class="px-2 md:px-3 py-1 rounded-md text-gray-400 hover:text-white whitespace-nowrap">1年</button>
                     </div>
                 </div>
 
                 <div class="flex justify-between items-center text-xs md:text-sm mb-2">
-                    <span id="data-warning" class="text-yellow-500 hidden text-xs font-bold">⚠️ 證交所資料逐月抓取中，請稍候...</span>
+                    <span id="data-warning" class="text-yellow-500 hidden text-xs font-bold">⚠️ 連線中，請稍候...</span>
                     <div class="flex gap-3 ml-auto" id="ma-toggles">
                         <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="ma5" checked onchange="updateChart()"> <span class="text-yellow-400">MA5</span></label>
                         <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" id="ma10" onchange="updateChart()"> <span class="text-orange-400">MA10</span></label>
@@ -79,12 +79,12 @@
             <div class="lg:col-span-3 space-y-4">
                 <div class="bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700 h-full flex flex-col gap-3">
                     <h2 class="text-lg font-bold border-b border-gray-600 pb-2 flex justify-between">
-                        <span>📋 個股四大面向 (TWSE)</span>
+                        <span>📋 個股四大面向</span>
                         <span class="text-xs text-blue-400 font-normal self-end animate-pulse">點擊看詳情</span>
                     </h2>
                     
                     <div onclick="openDetailModal('basic')" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg border-l-4 border-blue-500 cursor-pointer transition-colors group relative">
-                        <h3 class="font-bold text-blue-400 mb-1 text-sm flex justify-between">🏢 基本面 (證交所數據) <span class="text-gray-500 group-hover:text-blue-300">🔍</span></h3>
+                        <h3 class="font-bold text-blue-400 mb-1 text-sm flex justify-between">🏢 基本面 (本益/淨值比) <span class="text-gray-500 group-hover:text-blue-300">🔍</span></h3>
                         <p id="info-basic" class="text-xs text-gray-300 whitespace-pre-line">連線抓取中...</p>
                     </div>
                     
@@ -94,7 +94,7 @@
                     </div>
                     
                     <div onclick="openDetailModal('chips')" class="bg-gray-700 hover:bg-gray-600 p-3 rounded-lg border-l-4 border-red-500 cursor-pointer transition-colors group relative">
-                        <h3 class="font-bold text-red-400 mb-1 text-sm flex justify-between">💰 資金面 (官方成交量) <span class="text-gray-500 group-hover:text-red-300">🔍</span></h3>
+                        <h3 class="font-bold text-red-400 mb-1 text-sm flex justify-between">💰 資金面 (真實量能) <span class="text-gray-500 group-hover:text-red-300">🔍</span></h3>
                         <p id="info-chips" class="text-xs text-gray-300 whitespace-pre-line">分析真實量能中...</p>
                     </div>
                     
@@ -165,7 +165,7 @@
                 </div>
                 <div>
                     <span class="text-gray-500">🔗 資料來源：</span>
-                    <a id="modal-link" href="#" target="_blank" class="text-blue-400 hover:text-blue-300 hover:underline font-bold transition-colors">台灣證券交易所 TWSE</a>
+                    <a id="modal-link" href="#" target="_blank" class="text-blue-400 hover:text-blue-300 hover:underline font-bold transition-colors">FinMind API</a>
                 </div>
             </div>
         </div>
@@ -176,24 +176,7 @@
             return (val !== null && val !== undefined && !isNaN(val)) ? Number(val).toFixed(decimals) : '--';
         }
 
-        async function fetchWithProxy(url) {
-            const proxies = [
-                `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-                `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
-            ];
-            for (let p of proxies) {
-                try {
-                    let res = await fetch(p, { cache: "no-store", timeout: 12000 });
-                    if (!res.ok) continue;
-                    let text = await res.text();
-                    let json = JSON.parse(text);
-                    if (json) return json;
-                } catch (e) { console.warn(`Proxy failed for: ${url}`); }
-            }
-            return null; 
-        }
-
-        let stocks = JSON.parse(localStorage.getItem('twse_my_stocks')) || ['2330', '2317', '2603'];
+        let stocks = JSON.parse(localStorage.getItem('fm_my_stocks')) || ['2330', '2317', '2603'];
         let activeStock = stocks[0] || '2330';
         let stockDataCache = {}; 
         let currentRange = 90; 
@@ -227,7 +210,7 @@
             if(input && input.length >= 4 && !stocks.includes(input)) {
                 previousStock = activeStock; 
                 stocks.push(input);
-                localStorage.setItem('twse_my_stocks', JSON.stringify(stocks));
+                localStorage.setItem('fm_my_stocks', JSON.stringify(stocks));
                 activeStock = input;
                 document.getElementById('stock-input').value = '';
                 renderTabs();
@@ -236,14 +219,14 @@
                 switchTab(input);
                 document.getElementById('stock-input').value = '';
             } else if (input) {
-                alert('請輸入有效的上市代碼 (如: 2330)');
+                alert('請輸入有效的代碼 (如: 2330)');
             }
         }
 
         function closeTab(stock, event) {
             event.stopPropagation();
             stocks = stocks.filter(s => s !== stock);
-            localStorage.setItem('twse_my_stocks', JSON.stringify(stocks));
+            localStorage.setItem('fm_my_stocks', JSON.stringify(stocks));
             if(stocks.length > 0) {
                 if(activeStock === stock) { activeStock = stocks[0]; setDateRange(currentRange); }
                 else renderTabs();
@@ -261,7 +244,7 @@
             container.innerHTML = '';
             stocks.forEach(stock => {
                 let isActive = stock === activeStock;
-                let displayName = stockDataCache[stock] && stockDataCache[stock].name ? stockDataCache[stock].name : stock;
+                let displayName = stock; 
                 let btn = document.createElement('div');
                 btn.className = `flex items-center gap-2 px-4 py-2 rounded-t-lg font-bold transition-colors cursor-pointer select-none whitespace-nowrap 
                                  ${isActive ? 'bg-gray-800 text-blue-400 border-t-2 border-blue-500' : 'bg-gray-900 text-gray-500 hover:text-gray-300 border-t border-gray-700'}`;
@@ -273,14 +256,13 @@
 
         function setDateRange(days) {
             currentRange = days;
-            [30, 90, 180].forEach(d => {
+            [30, 90, 180, 365].forEach(d => {
                 let btn = document.getElementById(`btn-range-${d}`);
                 if(btn) btn.className = (d === days) ? "px-2 md:px-3 py-1 rounded-md bg-gray-600 text-white font-bold shadow whitespace-nowrap" : "px-2 md:px-3 py-1 rounded-md text-gray-400 hover:text-white whitespace-nowrap";
             });
             fetchRealData(activeStock, days);
         }
 
-        // === 核心指標計算 ===
         function calculateEMA(data, period) {
             let ema = new Array(data.length).fill(null);
             let multiplier = 2 / (period + 1);
@@ -344,149 +326,91 @@
             data.upperBB = upperBB; data.lowerBB = lowerBB;
         }
 
-        // === 獲取 TWSE 證交所資料 ===
-        function getTWSEDateStr(dateObj) {
-            let y = dateObj.getFullYear();
-            let m = (dateObj.getMonth() + 1).toString().padStart(2, '0');
-            return `${y}${m}01`; // TWSE 需要 YYYYMMDD，每月從 01 開始抓
-        }
-
-        function parseTWSEValue(str) {
-            if(!str || str === '--') return null;
-            return parseFloat(str.replace(/,/g, ''));
-        }
-
+        // ==========================================
+        // 🚀 核心：完全不透過 Proxy，原生直連 FinMind
+        // ==========================================
         async function fetchRealData(stock, days) {
             let warnEl = document.getElementById('data-warning');
             let titleEl = document.getElementById('chart-title');
-            warnEl.classList.remove('hidden');
-            warnEl.innerText = "⏳ 正在突破防線，向證交所逐月抓取數據...";
-            titleEl.innerText = `證交所連線中...`;
-
-            // 動態決定要往前抓幾個月 (確保能算出 60MA 季線)
-            let monthsToFetch = days === 30 ? 5 : days === 90 ? 7 : 10; 
-            let datesToFetch = [];
-            let now = new Date();
-            for(let i=0; i<monthsToFetch; i++) {
-                let d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                datesToFetch.push(getTWSEDateStr(d));
-            }
             
-            // 將最新的月份放在最後面處理
-            datesToFetch.reverse();
+            warnEl.classList.remove('hidden');
+            warnEl.innerText = "⏳ 正在直接連線至 FinMind 金融開源資料庫...";
+            titleEl.innerText = `直連抓取中...`;
 
-            let allDailyData = [];
-            let stockName = stock;
+            // 計算日期區間 (往回多抓 90 天以計算 60MA)
+            let fetchDays = days + 90; 
+            let startDate = new Date();
+            startDate.setDate(startDate.getDate() - fetchDays);
+            let startStr = startDate.toISOString().split('T')[0];
 
+            let fmUrl = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${stock}&start_date=${startStr}`;
+            
             try {
-                // 平行抓取多個月份
-                let promises = datesToFetch.map(dateStr => {
-                    let url = `https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&date=${dateStr}&stockNo=${stock}`;
-                    return fetchWithProxy(url);
-                });
-
-                let results = await Promise.all(promises);
+                // 原生 Fetch，不會有 CORS 問題！
+                let res = await fetch(fmUrl);
+                let json = await res.json();
                 
-                results.forEach(res => {
-                    if (res && res.stat === "OK" && res.data) {
-                        if (res.title) {
-                            // 解析 title 取得中文名稱，格式通常為: "115年03月 2330 台積電 各日成交資訊"
-                            let match = res.title.match(/\d+\s+(.+)\s+各日成交資訊/);
-                            if(match) stockName = match[1].trim();
-                        }
-                        res.data.forEach(item => {
-                            // TWSE item 格式: [日期, 成交股數, 成交金額, 開盤價, 最高價, 最低價, 收盤價, 漲跌價差, 成交筆數]
-                            let minguoDate = item[0].split('/'); // 例如 "115/03/16"
-                            let gregorianYear = parseInt(minguoDate[0]) + 1911; // 轉為西元年
-                            let dateStr = `${gregorianYear}-${minguoDate[1]}-${minguoDate[2]}`;
-                            
-                            let open = parseTWSEValue(item[3]);
-                            let high = parseTWSEValue(item[4]);
-                            let low = parseTWSEValue(item[5]);
-                            let close = parseTWSEValue(item[6]);
-                            let volume = parseTWSEValue(item[1]); // 成交股數
-
-                            if(open !== null && close !== null) {
-                                allDailyData.push({ dateStr, open, high, low, close, volume });
-                            }
-                        });
-                    }
-                });
-
-                if (allDailyData.length === 0) {
-                    throw new Error("查無上市資料");
+                if (json.status !== 200 || !json.data || json.data.length === 0) {
+                    throw new Error("查無此代碼資料，或 FinMind 暫時無法回應。");
                 }
 
-                // 按日期排序確保順序正確
-                allDailyData.sort((a,b) => new Date(a.dateStr) - new Date(b.dateStr));
+                let data = { dates: [], opens: [], highs:[], lows:[], closes:[], volumes:[], name: stock, symbol: stock, fundamentals: {} };
+                
+                // 解析股價資料
+                json.data.forEach(item => {
+                    data.dates.push(item.date);
+                    data.opens.push(item.open);
+                    data.highs.push(item.max);
+                    data.lows.push(item.min);
+                    data.closes.push(item.close);
+                    data.volumes.push(item.Trading_Volume); // 股數
+                });
+
+                // 同步抓取最新本益比 (PE) 與殖利率資料
+                try {
+                    let fundaStart = new Date();
+                    fundaStart.setDate(fundaStart.getDate() - 15); // 抓最近 15 天確保有資料
+                    let fundaUrl = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPER&data_id=${stock}&start_date=${fundaStart.toISOString().split('T')[0]}`;
+                    let fundaRes = await fetch(fundaUrl);
+                    let fundaJson = await fundaRes.json();
+                    
+                    if (fundaJson.status === 200 && fundaJson.data && fundaJson.data.length > 0) {
+                        let lastRow = fundaJson.data[fundaJson.data.length - 1];
+                        data.fundamentals = { pe: lastRow.PER, pb: lastRow.PBR, yield: lastRow.dividend_yield };
+                    }
+                } catch(e) { console.warn("無法取得基本面資料"); }
+
+                calcAdvancedIndicators(data);
+
+                // 外部新聞：透過非常穩定的 rss2json 拿 Yahoo 標題
+                let rssUrl = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${stock}.TW`;
+                let newsUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
+                try {
+                    let newsRes = await fetch(newsUrl);
+                    if(newsRes.ok) {
+                        let newsData = await newsRes.json();
+                        data.news = newsData.items || [];
+                    } else data.news =[];
+                } catch(e) { data.news =[]; }
+
+                warnEl.classList.add('hidden');
+                stockDataCache[stock] = data;
+
+                renderTabs();
+                updateTopPriceBar();
+                updateChart();
+                updatePanelsPreview(stock, data);
+                runAdvancedAIStrategies(stock);
+                updateWebInsights(stock);
 
             } catch (error) {
-                alert(`❌ 無法取得 ${stock} 證交所數據。\n請確認代碼是否正確，或是該標的為「上櫃股票」(本系統目前僅接軌 TWSE 上市 API)。`);
+                alert(`❌ 無法取得 ${stock} 數據。\n原因：${error.message}`);
                 warnEl.classList.add('hidden');
                 stocks = stocks.filter(s => s !== stock);
-                localStorage.setItem('twse_my_stocks', JSON.stringify(stocks));
+                localStorage.setItem('fm_my_stocks', JSON.stringify(stocks));
                 activeStock = previousStock || stocks[0];
                 if(stocks.length > 0) switchTab(activeStock);
-                return;
             }
-
-            // 抓取證交所今日 PE / PB / Yield
-            let fundamentals = {};
-            try {
-                let todayStr = getTWSEDateStr(new Date()).replace('01', new Date().getDate().toString().padStart(2, '0'));
-                let fundaUrl = `https://www.twse.com.tw/exchangeReport/BWIBBU?response=json&date=${todayStr}&stockNo=${stock}`;
-                let fundaRes = await fetchWithProxy(fundaUrl);
-                
-                // 若今日無資料(休市)，嘗試抓大表最新一筆
-                if (!fundaRes || fundaRes.stat !== "OK" || !fundaRes.data) {
-                    fundaUrl = `https://www.twse.com.tw/exchangeReport/BWIBBU?response=json&date=&stockNo=${stock}`;
-                    fundaRes = await fetchWithProxy(fundaUrl);
-                }
-                
-                if (fundaRes && fundaRes.stat === "OK" && fundaRes.data && fundaRes.data.length > 0) {
-                    let lastRow = fundaRes.data[fundaRes.data.length - 1];
-                    // 格式: [日期, 殖利率(%), 股利年度, 本益比, 股價淨值比, 財報年/季]
-                    fundamentals = {
-                        yield: lastRow[1],
-                        pe: lastRow[3],
-                        pb: lastRow[4]
-                    };
-                }
-            } catch(e) { console.log('PE fetch failed'); }
-
-            let data = { dates: [], opens: [], highs:[], lows:[], closes:[], volumes:[], name: stockName, fundamentals: fundamentals, symbol: stock };
-            
-            allDailyData.forEach(item => {
-                data.dates.push(item.dateStr);
-                data.opens.push(item.open);
-                data.highs.push(item.high);
-                data.lows.push(item.low);
-                data.closes.push(item.close);
-                data.volumes.push(item.volume);
-            });
-
-            calcAdvancedIndicators(data);
-
-            // 外部新聞聯播網 (Yahoo RSS - 證交所本身無新聞API)
-            let rssUrl = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${stock}.TW`;
-            let newsUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
-            try {
-                let newsRes = await fetch(newsUrl);
-                if(newsRes.ok) {
-                    let newsData = await newsRes.json();
-                    data.news = newsData.items || [];
-                } else data.news =[];
-            } catch(e) { data.news =[]; }
-
-            warnEl.classList.add('hidden');
-            stockDataCache[stock] = data;
-
-            renderTabs();
-            updateTopPriceBar();
-            updateChart();
-            updatePanelsPreview(stock, data);
-            runAdvancedAIStrategies(stock);
-            updateWebInsights(stock);
         }
 
         function updateTopPriceBar() {
@@ -519,7 +443,8 @@
             let data = stockDataCache[activeStock];
             if(!data || data.dates.length === 0) return;
 
-            let bars = currentRange === 30 ? 22 : currentRange === 90 ? 65 : 130; // 配合交易日
+            // 天數轉換 (扣除假日)
+            let bars = currentRange === 30 ? 22 : currentRange === 90 ? 65 : currentRange === 180 ? 130 : 250;
             let sliceStart = Math.max(0, data.dates.length - bars);
             
             let sDates = data.dates.slice(sliceStart);
@@ -546,12 +471,8 @@
         }
 
         function updatePanelsPreview(stock, data) {
-            let f = data.fundamentals || {};
-            let pe = f.pe || '--';
-            let pb = f.pb || '--';
-            let yld = f.yield || '--';
-            
-            document.getElementById('info-basic').innerText = `• 官方本益比(PE): ${pe}\n• 股價淨值比(PB): ${pb}\n• 歷史股息殖利率: ${yld}%`;
+            let f = data.fundamentals;
+            document.getElementById('info-basic').innerText = `• 本益比(PE): ${f.pe || '--'}\n• 股價淨值比(PB): ${f.pb || '--'}\n• 預估殖利率: ${f.yield || '--'}%`;
             
             let lastIdx = data.closes.length-1;
             let lastPrice = data.closes[lastIdx];
@@ -561,9 +482,9 @@
             
             document.getElementById('info-tech').innerText = `• RSI (14): ${rsi}\n• 月線位置: ${safeFixed(ma20)}\n• 乖離率 (相距月線): ${bias}%`;
             
-            let vol = data.volumes[lastIdx]; // 證交所回傳為股數
+            let vol = data.volumes[lastIdx];
             let avgVol = data.volumes.slice(-6, -1).reduce((a,b)=>a+b,0)/5;
-            document.getElementById('info-chips').innerText = `• 今日成交量: ${(vol/1000).toFixed(0)} 張\n• 五日均量: ${(avgVol/1000).toFixed(0)} 張\n• 狀態: ${vol>avgVol?'量能放大':'量縮整理'}`;
+            document.getElementById('info-chips').innerText = `• 單日成交量: ${(vol/1000).toFixed(0)} 張\n• 五日均量: ${(avgVol/1000).toFixed(0)} 張\n• 狀態: ${vol>avgVol?'量能放大':'量縮整理'}`;
             
             let newsTitle = data.news && data.news.length > 0 ? data.news[0].title : "暫無最新新聞";
             document.getElementById('info-news').innerText = `• ${newsTitle}\n(點選看詳細來源)`;
@@ -588,41 +509,41 @@
             if (rsi !== null && rsi < 35 && lastClose >= lowerBB) {
                 strategies.push({ 
                     name: "極度超賣反彈", score: 85 + (35-rsi), dir: "做多 🔴", 
-                    exp: "指標落入嚴重超賣區，且股價在布林通道下軌獲得支撐，代表短線上殺盤力道衰退，醞釀技術性反彈。",
-                    act: `操作指南：建議在 ${safeFixed(lastClose)} 附近試單接回，停損防守點嚴格設定在跌破下軌 ${safeFixed(lowerBB)}。`,
-                    evd: `1. RSI(14) 降至 ${safeFixed(rsi,1)} (低於35)。\n2. 收盤價貼近布林下軌 (${safeFixed(lowerBB)})。` 
+                    exp: "指標落入嚴重超賣區，且股價在布林通道下軌獲得支撐，醞釀技術性反彈。",
+                    act: `操作指南：建議在 ${safeFixed(lastClose)} 附近試單接回，防守點嚴格設定在跌破下軌 ${safeFixed(lowerBB)}。`,
+                    evd: `1. RSI(14) 降至 ${safeFixed(rsi,1)}。\n2. 貼近布林下軌 (${safeFixed(lowerBB)})。` 
                 });
             }
             if (upperBB !== null && lastClose > upperBB && ma5 > ma20) {
                 strategies.push({ 
                     name: "布林通道強勢突破", score: 90, dir: "做多 🔴", 
-                    exp: "目前處於明確的「多頭市場」(Bull Market)。股價夾帶買盤突破布林通道上軌，屬於強勢軋空或波段起漲特徵。",
+                    exp: "多頭市場特徵。股價夾帶買盤突破布林通道上軌，屬於強勢軋空或波段起漲特徵。",
                     act: `操作指南：順勢操作為主，進場點可定在現價 ${safeFixed(lastClose)}，並以 5 日線 (${safeFixed(ma5)}) 作為移動停利點。`,
-                    evd: `1. 股價突破上軌 ${safeFixed(upperBB)}。\n2. MA5 > MA20，趨勢確立。` 
+                    evd: `1. 突破上軌 ${safeFixed(upperBB)}。\n2. MA5 > MA20，趨勢確立。` 
                 });
             }
             if (ma5 !== null && ma20 !== null && macd !== null && ma5 > ma20 && macd > macdSig && rsi >= 45 && rsi <= 65) {
                 strategies.push({ 
                     name: "MACD 均線多頭順勢", score: 80, dir: "做多 🔴", 
-                    exp: "動能指標 MACD 與均線系統同步給出買進訊號，且 RSI 並未過熱，屬於勝率極高的順勢波段策略。",
-                    act: `操作指南：逢拉回至 5 日均線 (${safeFixed(ma5)}) 附近可分批佈局做多，長波防守點看月線 (${safeFixed(ma20)})。`,
+                    exp: "動能指標 MACD 與均線系統同步給出買進訊號，屬於勝率極高的順勢波段策略。",
+                    act: `操作指南：逢拉回至 5 日均線 (${safeFixed(ma5)}) 附近可分批佈局做多。`,
                     evd: `1. MA5 (${safeFixed(ma5)}) > MA20。\n2. MACD (${safeFixed(macd,2)}) 大於訊號線。` 
                 });
             }
             if (rsi !== null && rsi > 70 && lastClose < ma5) {
                 strategies.push({ 
                     name: "高檔超買乖離回檔", score: 82, dir: "放空/觀望 🟢", 
-                    exp: "指標進入嚴重超買區，出現跌破短均線的轉弱訊號，隨時可能向下方月線進行均值回歸的修正。",
-                    act: `操作指南：持有多單者建議先獲利了結；積極型可考慮在現價利用「融券放空」策略，停損設前高。`,
-                    evd: `1. RSI 高達 ${safeFixed(rsi,1)}。\n2. 股價率先跌破短期生命線 MA5 (${safeFixed(ma5)})。` 
+                    exp: "指標進入嚴重超買區，出現跌破短均線的轉弱訊號，隨時可能進行均值回歸的修正。",
+                    act: `操作指南：持有多單者建議先獲利了結；積極型可考慮在現價利用「融券放空」策略。`,
+                    evd: `1. RSI 高達 ${safeFixed(rsi,1)}。\n2. 跌破短期生命線 MA5 (${safeFixed(ma5)})。` 
                 });
             }
             if (ma5 !== null && ma20 !== null && ma5 < ma20 && macd < macdSig) {
                 strategies.push({ 
                     name: "均線空頭規避策略", score: 88, dir: "放空/觀望 🟢", 
-                    exp: "月線持續下彎蓋頭反壓，且 MACD 動能為負，接刀搶反彈的風險極高。",
+                    exp: "月線下彎蓋頭反壓，且 MACD 動能為負，接刀搶反彈的風險極高。",
                     act: `操作指南：強烈建議空手觀望。若有避險需求，可等待反彈觸碰 10 日線 (${safeFixed(data.ma10[lastIdx])}) 無力時進行放空。`,
-                    evd: `1. MA5 < MA20，均線呈現空頭排列。\n2. MACD 落入零軸之下。` 
+                    evd: `1. MA5 < MA20，空頭排列。\n2. MACD 落入零軸之下。` 
                 });
             }
 
@@ -630,7 +551,7 @@
                 name: "量縮無趨勢震盪", dir: "觀望 🟡", 
                 exp: "目前各項技術指標皆呈現糾結或中性，無單邊明確方向。", 
                 act: "操作指南：保留現金，等待帶量突破上軌或跌破下軌的表態訊號出現後再行進場。", 
-                evd: "MACD 貼近零軸，短期均線與月線距離極近，無明顯發散。" 
+                evd: "MACD 貼近零軸，無明顯發散。" 
             };
 
             document.getElementById('sig-strategy-name').innerText = bestStrategy.name;
@@ -653,12 +574,12 @@
                         </a>
                     </h4>
                     <div class="flex justify-between items-center text-xs text-gray-400 border-t border-gray-600 pt-2 mt-2">
-                        <span>來源：外部網路 RSS</span>
+                        <span>來源：Yahoo 財經 RSS</span>
                         <span>發布：${pubTime}</span>
                     </div>
                 `;
             } else {
-                newsContainer.innerHTML = `<p class="text-gray-400">目前無該標的之最新重大新聞動態。</p>`;
+                newsContainer.innerHTML = `<p class="text-gray-400">目前無該標的之最新動態。</p>`;
             }
         }
 
@@ -670,32 +591,31 @@
             let bodyEl = document.getElementById('modal-body');
             let headerEl = document.getElementById('modal-header');
             
-            // 指向台灣證券交易所
             let linkEl = document.getElementById('modal-link');
-            linkEl.href = `https://www.twse.com.tw/zh/trading/historical/stock-day.html`;
-            linkEl.innerText = `前往證交所 (${data.symbol}) 查詢明細`;
+            linkEl.href = `https://finmindtrade.com/`;
+            linkEl.innerText = `了解 FinMind 開源金融 API`;
 
             headerEl.className = "flex justify-between items-center p-5 border-b border-gray-700";
 
             if (type === 'basic') {
                 headerEl.classList.add('bg-blue-900/30');
-                titleEl.innerHTML = `🏢 ${data.name} - 證交所官方指標`;
+                titleEl.innerHTML = `🏢 ${data.name} - 基本面指標`;
                 titleEl.className = "text-xl md:text-2xl font-bold text-blue-400 flex items-center gap-2";
                 
                 let f = data.fundamentals || {};
                 bodyEl.innerHTML = `
                     <div class="mb-4">
-                        <h4 class="text-blue-300 font-bold border-b border-gray-600 pb-1 mb-2">📊 官方結算估值</h4>
+                        <h4 class="text-blue-300 font-bold border-b border-gray-600 pb-1 mb-2">📊 市場評價與估值</h4>
                         <ul class="list-disc pl-5 space-y-2">
                             <li><strong>本益比 (PE)：</strong> <span class="text-white font-bold">${f.pe || '--'}</span></li>
                             <li><strong>股價淨值比 (PB)：</strong> <span class="text-white font-bold">${f.pb || '--'}</span></li>
-                            <li><strong>歷史股息殖利率：</strong> ${f.yield || '--'} %</li>
+                            <li><strong>預估股息殖利率：</strong> ${f.yield || '--'} %</li>
                         </ul>
                     </div>
                 `;
             } else if (type === 'tech') {
                 headerEl.classList.add('bg-yellow-900/30');
-                titleEl.innerHTML = `📈 ${data.name} - 真實綜合技術指標`;
+                titleEl.innerHTML = `📈 ${data.name} - 綜合技術指標`;
                 titleEl.className = "text-xl md:text-2xl font-bold text-yellow-400 flex items-center gap-2";
                 
                 let lastIdx = data.closes.length - 1;
@@ -719,14 +639,13 @@
                             <li><strong>收盤價：</strong> ${safeFixed(data.closes[lastIdx])}</li>
                             <li><strong>MA5 (週線)：</strong> ${safeFixed(data.ma5[lastIdx])}</li>
                             <li><strong>MA20 (月線)：</strong> ${safeFixed(data.ma20[lastIdx])}</li>
-                            <li><strong>MA60 (季線)：</strong> ${safeFixed(data.ma60[lastIdx])}</li>
                             <li><strong>布林通道上/下軌：</strong> ${safeFixed(data.upperBB[lastIdx])} / ${safeFixed(data.lowerBB[lastIdx])}</li>
                         </ul>
                     </div>
                 `;
             } else if (type === 'chips') {
                 headerEl.classList.add('bg-red-900/30');
-                titleEl.innerHTML = `💰 ${data.name} - 證交所官方量能`;
+                titleEl.innerHTML = `💰 ${data.name} - 真實交易量能`;
                 titleEl.className = "text-xl md:text-2xl font-bold text-red-400 flex items-center gap-2";
                 
                 let vol = data.volumes[data.volumes.length-1];
