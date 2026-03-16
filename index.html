@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台股決策系統 (TEJ 法人級數據+多模型AI)</title>
+    <title>台股決策系統 (TEJ 基礎數據+多模型AI)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <style>
@@ -24,7 +24,7 @@
         
         <div class="flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
             <h1 class="text-2xl font-bold text-blue-400 flex items-center gap-2 whitespace-nowrap">
-                📈 台股決策戰情室 <span class="text-xs bg-indigo-900 text-indigo-200 px-2 py-1 rounded">TEJ 法人級數據直連</span>
+                📈 台股決策戰情室 <span class="text-xs bg-indigo-900 text-indigo-200 px-2 py-1 rounded">TEJ 基礎未調整數據</span>
             </h1>
             
             <div class="flex gap-2 w-full md:w-auto">
@@ -173,7 +173,7 @@
     </div>
 
     <script>
-        // 將你提供的 TEJ API Key 直接寫死在此處 (僅供本地測試使用！)
+        // 金鑰已寫死 (請勿部署至公開網頁)
         const TEJ_API_KEY = "B2Xt7AmENBWbnF0uDxAw0g5rxPHZlr";
 
         function safeFixed(val, decimals = 2) {
@@ -352,7 +352,7 @@
             let titleEl = document.getElementById('chart-title');
             
             warnEl.classList.remove('hidden');
-            warnEl.innerText = "⏳ 正在透過 Proxy 向 TEJ 伺服器請求資料...";
+            warnEl.innerText = "⏳ 正在透過 Proxy 向 TEJ 伺服器請求未調整數據...";
             titleEl.innerText = `TEJ 連線中...`;
 
             let fetchDays = days + 90; 
@@ -363,14 +363,14 @@
             let startStr = startDate.toISOString().split('T')[0];
             let endStr = endDate.toISOString().split('T')[0];
 
-            // 使用常數 TEJ_API_KEY
-            let tejUrl = `https://api.tej.com.tw/api/datatables/TWN/APRCD.json?coid=${stock}&mdate.gte=${startStr}&mdate.lte=${endStr}&api_key=${TEJ_API_KEY}`;
+            // 切換為 TWN/EWPRCD (上市櫃未調整股價(日))
+            let tejUrl = `https://api.tej.com.tw/api/datatables/TWN/EWPRCD.json?coid=${stock}&mdate.gte=${startStr}&mdate.lte=${endStr}&api_key=${TEJ_API_KEY}`;
 
             try {
                 let resData = await fetchWithProxy(tejUrl);
                 
                 if (!resData || !resData.datatable || !resData.datatable.data || resData.datatable.data.length === 0) {
-                    throw new Error("API Key 無效，或查無該股票資料。");
+                    throw new Error("授權失敗或查無資料。若是授權失敗，代表該金鑰已失效。");
                 }
 
                 let columns = resData.datatable.columns.map(c => c.name);
@@ -428,7 +428,7 @@
                 updateWebInsights(stock);
 
             } catch (error) {
-                alert(`❌ 無法取得 ${stock} TEJ 數據。\n原因：${error.message}\n請確認代碼是否正確。`);
+                alert(`❌ 無法取得 ${stock} TEJ 數據。\n原因：${error.message}\n如果此表依然失敗，代表該金鑰本身已過期或被停權。`);
                 warnEl.classList.add('hidden');
                 stocks = stocks.filter(s => s !== stock);
                 localStorage.setItem('tej_my_stocks', JSON.stringify(stocks));
@@ -494,7 +494,7 @@
         }
 
         function updatePanelsPreview(stock, data) {
-            document.getElementById('info-basic').innerText = `• 數據源: 台灣經濟新報 (TEJ)\n• 資料表: TWN/APRCD (調整後股價)\n• 法人級除權息調整: 已完成`;
+            document.getElementById('info-basic').innerText = `• 數據源: 台灣經濟新報 (TEJ)\n• 資料表: TWN/EWPRCD (未調整股價)\n• 備註: 此為除權息前之原始報價`;
             
             let lastIdx = data.closes.length-1;
             let lastPrice = data.closes[lastIdx];
@@ -626,9 +626,9 @@
                 
                 bodyEl.innerHTML = `
                     <div class="mb-4">
-                        <h4 class="text-blue-300 font-bold border-b border-gray-600 pb-1 mb-2">📊 TEJ 法人級數據源</h4>
+                        <h4 class="text-blue-300 font-bold border-b border-gray-600 pb-1 mb-2">📊 TEJ 基礎數據源</h4>
                         <p class="text-gray-300 text-sm leading-relaxed mb-4">
-                            本系統目前介接 TEJ API <strong>TWN/APRCD (上市櫃調整後股價)</strong> 資料表。該表已完美處理歷年除權息、減資等影響，呈現最真實的投資報酬走勢，是量化回測與機器學習的標準數據源。
+                            本系統目前介接 TEJ API <strong>TWN/EWPRCD (上市櫃未調整股價)</strong> 資料表。此為除權息前之原始報價，通常為教育方案或基礎測試時最常授權存取的表格。
                         </p>
                     </div>
                 `;
